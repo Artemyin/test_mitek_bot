@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 import requests
 
-load_dotenv("../.env")
+load_dotenv(".env")
 
 celery = Celery(__name__)
 celery.conf.broker_url = os.environ.get("CELERY_BROKER_URL")

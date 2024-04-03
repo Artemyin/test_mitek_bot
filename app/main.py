@@ -23,7 +23,7 @@ def add_user_voice(user, file_name):
     create_voice(user.id, file_name)
 
 
-load_dotenv("../.env")
+load_dotenv(".env")
 
 BOT_TOKEN = environ["BOT_TOKEN"]
 
@@ -70,14 +70,14 @@ class PhotoVoiceBot(BotMixin):
         photo = message.photo[-1]  # replace with ENUM ?
         photo_name, link = await self.download_object(photo)
         print(f"Photos from user {user.id} was saved")
-        # task = process_photo.delay(link)  # send task to celery_queue
-        # photo_info = task.get()  # unpack task
 
         task = celery.send_task('process_photo', args=[link], kwargs={})
         task_id = task.id
         work = celery.AsyncResult(task_id)
         result = work.get()
+
         add_user_photo(user, photo_name)
+
         await message.reply_text(f"Photos from user {user.id} was saved {link}")
         await message.reply_text(f"{json.dumps(result, indent=2)}")
 
@@ -105,9 +105,6 @@ class PhotoVoiceBot(BotMixin):
         result = work.get()
         print("task sent")
         await update.message.reply_text(f"task execute: {result}")
-
-
-
 
 
 bot_access = PhotoVoiceBot(BOT_TOKEN)

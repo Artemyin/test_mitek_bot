@@ -6,6 +6,9 @@ from os.path import exists
 import uuid
 from dotenv import load_dotenv
 from crud import create_photo, create_user, get_user_by_id, create_voice
+import json
+
+from celery_worker import create_task, process_photo
 
 
 def add_user_photo(user, file_name):
@@ -27,7 +30,9 @@ class BotMixin:
     async def download_object(self, obj):
         obj_file = await self.get_file(obj)
         print(f"got photo file {obj_file}")
-        return await self.download_file(obj_file, obj)
+        file_link = obj_file.file_path
+        file_name = await self.download_file(obj_file, obj)
+        return file_name, file_link
         # print(f"Photos from user {obj_file.file_unique_id} was downloaded")
 
 
@@ -62,12 +67,13 @@ class PhotoVoiceBot(BotMixin):
         message = update.message
         user = message.from_user
         photo = message.photo[-1]  # replace with ENUM ?
-
-        photo_name = await self.download_object(photo)
+        photo_name, link = await self.download_object(photo)
         print(f"Photos from user {user.id} was saved")
+        task = process_photo.delay(link)  # send task to worker
+        photo_info = task.get()  # unpack task
         add_user_photo(user, photo_name)
-        
-        await message.reply_text(f"Photos from user {user.id} was saved")
+        await message.reply_text(f"Photos from user {user.id} was saved {link}")
+        await message.reply_text(f"{json.dumps(photo_info, indent=2)}")
 
     async def download_user_voice(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         message = update.message
@@ -82,9 +88,22 @@ class PhotoVoiceBot(BotMixin):
         await message.reply_text(f"voice message from user {message.from_user.id} was saved")
 
 
+    async def run_task(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        amount = 1
+        x = 2
+        y = 3
+        task = create_task.delay(amount, x, y)
+        result = task.get()
+        await update.message.reply_text(f"task execute: {result}")
+
+
+
+
+
 bot_access = PhotoVoiceBot(BOT_TOKEN)
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 app.add_handler(CommandHandler("hello", bot_access.hello))
+app.add_handler(CommandHandler("task", bot_access.run_task))
 app.add_handler(MessageHandler(filters.VOICE, bot_access.download_user_voice))
 app.add_handler(MessageHandler(filters.PHOTO, bot_access.download_user_photos))
 

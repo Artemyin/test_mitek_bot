@@ -6,14 +6,14 @@ from dotenv import load_dotenv
 
 import requests
 
-load_dotenv(".env")
+load_dotenv("../.env")
 
 celery = Celery(__name__)
 celery.conf.broker_url = os.environ.get("CELERY_BROKER_URL")
 celery.conf.result_backend = os.environ.get("CELERY_RESULT_BACKEND")
 
 
-url = "https://face-detection6.p.rapidapi.com/img/face-age-gender"
+url = "https://face-detection6.p.rapidapi.com/img/face"
 headers = {
 	"content-type": "application/json",
 	"X-RapidAPI-Key": "6f65d4f1f0msh5384163a85e65f5p12cfb9jsn6afd2199383f",

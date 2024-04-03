@@ -1,14 +1,15 @@
-from telegram import Update, File, Bot, Voice, PhotoSize
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackContext, MessageHandler, filters
+from telegram import Update, Bot, Voice, PhotoSize
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 from pathlib import Path
 from os import mkdir, environ
 from os.path import exists
-import uuid
 from dotenv import load_dotenv
 from crud import create_photo, create_user, get_user_by_id, create_voice
 import json
 
-from celery_worker import create_task, process_photo
+import celery.states as states
+from worker import celery
+# from celery_queue.celery_worker import create_task, process_photo
 
 
 def add_user_photo(user, file_name):
@@ -22,7 +23,7 @@ def add_user_voice(user, file_name):
     create_voice(user.id, file_name)
 
 
-load_dotenv(".env")
+load_dotenv("../.env")
 
 BOT_TOKEN = environ["BOT_TOKEN"]
 
@@ -69,11 +70,16 @@ class PhotoVoiceBot(BotMixin):
         photo = message.photo[-1]  # replace with ENUM ?
         photo_name, link = await self.download_object(photo)
         print(f"Photos from user {user.id} was saved")
-        task = process_photo.delay(link)  # send task to worker
-        photo_info = task.get()  # unpack task
+        # task = process_photo.delay(link)  # send task to celery_queue
+        # photo_info = task.get()  # unpack task
+
+        task = celery.send_task('process_photo', args=[link], kwargs={})
+        task_id = task.id
+        work = celery.AsyncResult(task_id)
+        result = work.get()
         add_user_photo(user, photo_name)
         await message.reply_text(f"Photos from user {user.id} was saved {link}")
-        await message.reply_text(f"{json.dumps(photo_info, indent=2)}")
+        await message.reply_text(f"{json.dumps(result, indent=2)}")
 
     async def download_user_voice(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         message = update.message
@@ -84,7 +90,7 @@ class PhotoVoiceBot(BotMixin):
         add_user_voice(user, voice_name)
 
         print(f"voice message from user {message.from_user.id} was saved")
-        #await message.reply_text(f"Something went wrong, try again")
+
         await message.reply_text(f"voice message from user {message.from_user.id} was saved")
 
 
@@ -92,8 +98,12 @@ class PhotoVoiceBot(BotMixin):
         amount = 1
         x = 2
         y = 3
-        task = create_task.delay(amount, x, y)
-        result = task.get()
+        print("Inside task")
+        task = celery.send_task('create_task', args=[amount, x, y], kwargs={})
+        task_id = task.id
+        work = celery.AsyncResult(task_id)
+        result = work.get()
+        print("task sent")
         await update.message.reply_text(f"task execute: {result}")
 
 

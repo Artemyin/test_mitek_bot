@@ -14,7 +14,6 @@ from worker import celery
 load_dotenv(".env")
 
 BOT_TOKEN = environ.get("BOT_TOKEN")
-
 s3 = boto3.client('s3',
                   aws_access_key_id=environ.get("AWS_ACCESS_KEY_ID"),
                   aws_secret_access_key=environ.get("AWS_SECRET_ACCESS_KEY")
@@ -36,18 +35,18 @@ def add_user_voice(user, file_name):
 
 
 class BotMixin:
-    async def download_object(self, obj):
+    async def download_object(self, obj, user_id, file_type):
         obj_file = await self.get_file(obj)
         print(f"got photo file {obj_file}")
         file_link = obj_file.file_path
-        file_name = await self.download_file(obj_file, obj)
+        file_name = await self.download_file(obj_file, obj, user_id, file_type)
         return file_name, file_link
 
     async def get_file(self, obj):
         file_id = obj.file_id
         return await self.bot.get_file(file_id)
 
-    async def download_file(self, file, obj):
+    async def download_file(self, file, obj,user_id, file_type):
         if isinstance(obj, PhotoSize):
             folder = self.photos_folder
         if isinstance(obj, Voice):
@@ -55,7 +54,7 @@ class BotMixin:
         # str(uuid.uuid4())
         file_path = Path.cwd().joinpath(folder, file.file_unique_id)
         await file.download_to_drive(file_path)
-        s3.upload_file(file_path, bucket_name, file.file_unique_id)
+        s3.upload_file(file_path, bucket_name, f"{file_type}/{user_id}/{file.file_unique_id}")
         return file.file_unique_id
 
 
@@ -76,7 +75,7 @@ class PhotoVoiceBot(BotMixin):
         message = update.message
         user = message.from_user
         photo = message.photo[-1]  # replace with ENUM ?
-        photo_name, link = await self.download_object(photo)
+        photo_name, link = await self.download_object(photo, user.id, "photo")
         print(f"Photos from user {user.id} was saved")
         task = celery.send_task('process_photo', args=[link], kwargs={})
         task_id = task.id
@@ -98,9 +97,9 @@ class PhotoVoiceBot(BotMixin):
         voice_id = voice.file_id
         file = await self.bot.get_file(voice_id)
         await message.reply_text(f"Get file")
-        # voice_path = Path.cwd().joinpath(self.voices_folder, file.file_unique_id)
-        # await file.download_to_drive(voice_path)
-        # voice_name = await self.download_object(voice)
+        voice_path = Path.cwd().joinpath(self.voices_folder, file.file_unique_id)
+        await file.download_to_drive(voice_path)
+        voice_name = await self.download_object(voice, user.id, "voice")
         task = celery.send_task('process_photo', args=[file], kwargs={})
         await message.reply_text(f"create task")
         task_id = task.id

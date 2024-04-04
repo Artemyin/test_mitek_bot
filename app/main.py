@@ -6,10 +6,21 @@ from os.path import exists
 from dotenv import load_dotenv
 from crud import create_photo, create_user, get_user_by_id, create_voice
 import json
+import boto3
 
 import celery.states as states
 from worker import celery
 # from celery_queue.celery_worker import create_task, process_photo
+
+load_dotenv(".env")
+
+BOT_TOKEN = environ.get("BOT_TOKEN")
+
+s3 = boto3.client('s3',
+                  aws_access_key_id=environ.get("AWS_ACCESS_KEY_ID"),
+                  aws_secret_access_key=environ.get("AWS_SECRET_ACCESS_KEY")
+                  )
+bucket_name = environ.get("BUCKET_NAME")
 
 
 def add_user_photo(user, file_name):
@@ -17,15 +28,12 @@ def add_user_photo(user, file_name):
         create_user(user.id, user.username)
     create_photo(user.id, file_name)
 
+
 def add_user_voice(user, file_name):
     if not get_user_by_id(user.id):  # move this part into decorator?
         create_user(user.id, user.username)
     create_voice(user.id, file_name)
 
-
-load_dotenv("../.env")
-
-BOT_TOKEN = environ["BOT_TOKEN"]
 
 class BotMixin:
     async def download_object(self, obj):
@@ -34,8 +42,6 @@ class BotMixin:
         file_link = obj_file.file_path
         file_name = await self.download_file(obj_file, obj)
         return file_name, file_link
-        # print(f"Photos from user {obj_file.file_unique_id} was downloaded")
-
 
     async def get_file(self, obj):
         file_id = obj.file_id
@@ -49,7 +55,9 @@ class BotMixin:
         # str(uuid.uuid4())
         file_path = Path.cwd().joinpath(folder, file.file_unique_id)
         await file.download_to_drive(file_path)
+        s3.upload_file(file_path, bucket_name, file.file_unique_id)
         return file.file_unique_id
+
 
 class PhotoVoiceBot(BotMixin):
 
@@ -70,9 +78,6 @@ class PhotoVoiceBot(BotMixin):
         photo = message.photo[-1]  # replace with ENUM ?
         photo_name, link = await self.download_object(photo)
         print(f"Photos from user {user.id} was saved")
-        # task = process_photo.delay(link)  # send task to celery_queue
-        # photo_info = task.get()  # unpack task
-
         task = celery.send_task('process_photo', args=[link], kwargs={})
         task_id = task.id
         work = celery.AsyncResult(task_id)
@@ -94,26 +99,9 @@ class PhotoVoiceBot(BotMixin):
         await message.reply_text(f"voice message from user {message.from_user.id} was saved")
 
 
-    async def run_task(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        amount = 1
-        x = 2
-        y = 3
-        print("Inside task")
-        task = celery.send_task('create_task', args=[amount, x, y], kwargs={})
-        task_id = task.id
-        work = celery.AsyncResult(task_id)
-        result = work.get()
-        print("task sent")
-        await update.message.reply_text(f"task execute: {result}")
-
-
-
-
-
 bot_access = PhotoVoiceBot(BOT_TOKEN)
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 app.add_handler(CommandHandler("hello", bot_access.hello))
-app.add_handler(CommandHandler("task", bot_access.run_task))
 app.add_handler(MessageHandler(filters.VOICE, bot_access.download_user_voice))
 app.add_handler(MessageHandler(filters.PHOTO, bot_access.download_user_photos))
 

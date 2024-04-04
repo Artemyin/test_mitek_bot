@@ -44,7 +44,7 @@ def process_photo(link, name, user_id):
         s3.upload_file(name, bucket_name, s3_name)
         os.remove(name)
         return json.loads('{{"result": "{0}"}}'.format(new_name))
-    return response.json()
+    return json.loads('{{"result": {0}}}'.format(0))
 
 @celery.task(name="process_voice")
 def process_voice(link, name, user_id):

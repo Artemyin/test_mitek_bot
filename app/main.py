@@ -62,6 +62,9 @@ class PhotoVoiceBot:
         await message.reply_text(f"get result")
 
         downloaded_file = result.get("result")
+        if not downloaded_file:
+            await message.reply_text(f"Photos from user {user.id} cant recognize face")
+            return
         add_user_photo(user, downloaded_file)
 
         await message.reply_text(f"Photos from user {user.id} was saved {downloaded_file}")

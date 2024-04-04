@@ -36,4 +36,5 @@ password: password
 flower - localhost:5556 
 
 s3 bucket name - mitek-bucket
+
 s3 location - eu-west-3

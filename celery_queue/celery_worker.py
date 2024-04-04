@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import boto3
 import requests
 from audio_converter import convert_ogg_to_wav
+from face_detector import detect_face
 import json
 
 import random
@@ -21,30 +22,19 @@ s3 = boto3.client('s3',
                   )
 bucket_name = os.environ.get("BUCKET_NAME")
 
-url = "https://face-detection6.p.rapidapi.com/img/face"
-rapid_api_key = os.environ.get("RAPIDAPI_KEY")
-headers = {
-	"content-type": "application/json",
-	"X-RapidAPI-Key": rapid_api_key,
-	"X-RapidAPI-Host": "face-detection6.p.rapidapi.com"
-}
-
 @celery.task(name="process_photo")
 def process_photo(link, name, user_id):
-    payload = {
-        "url": link,
-        "accuracy_boost": 3
-    }
-    response = requests.post(url, json=payload, headers=headers)
-    faces = response.json().get("detected_faces")
-    if faces and faces[0].get("Probability") > 90:
-        download_file(link, name)
+    download_file(link, name)
+    detected = detect_face(name)
+    if detected:
         new_name = str(generate_random_name(12)) + ".jpeg"
         s3_name = f"'photos'/{user_id}/{new_name}"
         s3.upload_file(name, bucket_name, s3_name)
-        os.remove(name)
-        return json.loads('{{"result": "{0}"}}'.format(new_name))
-    return json.loads('{{"result": {0}}}'.format(0))
+        result = json.loads('{{"result": "{0}"}}'.format(new_name))
+    else:
+        result = json.loads('{{"result": {0}}}'.format(0))
+    os.remove(name)
+    return result
 
 @celery.task(name="process_voice")
 def process_voice(link, name, user_id):

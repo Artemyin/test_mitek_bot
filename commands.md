@@ -9,3 +9,5 @@ docker-compose run app alembic revision --autogenerate -m "New Migration"  # cre
 docker-compose run app alembic upgrade head  # apply migration to DB
 6. create crud
 7. 
+sudo ss -tulnp | grep LISTEN
+

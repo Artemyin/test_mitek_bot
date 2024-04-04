@@ -32,11 +32,7 @@ class PhotoVoiceBot:
 
     def __init__(self, bot_token):
         self.bot = Bot(bot_token)
-        self.voices_folder = "voices"
-        self.photos_folder = "photos"
-        for folder in (self.voices_folder, self.photos_folder):
-            if not exists(folder):
-                mkdir(folder, mode=0o777)
+
 
     async def get_file(self, obj):
         file_id = obj.file_id

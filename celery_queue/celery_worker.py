@@ -1,11 +1,14 @@
 import os
-import time
-from pathlib import Path
 from celery import Celery
 from dotenv import load_dotenv
 import boto3
 import requests
 from audio_converter import convert_ogg_to_wav
+import json
+
+import random
+import string
+
 
 load_dotenv(".env")
 
@@ -27,19 +30,47 @@ headers = {
 }
 
 @celery.task(name="process_photo")
-def process_photo(photo):
+def process_photo(link, name, user_id):
     payload = {
-        "url": photo,
+        "url": link,
         "accuracy_boost": 3
     }
     response = requests.post(url, json=payload, headers=headers)
+    faces = response.json().get("detected_faces")
+    if faces and faces[0].get("Probability") > 90:
+        download_file(link, name)
+        new_name = str(generate_random_name(12)) + ".jpeg"
+        s3_name = f"'photos'/{user_id}/{new_name}"
+        s3.upload_file(name, bucket_name, s3_name)
+        os.remove(name)
+        return json.loads('{{"result": "{0}"}}'.format(new_name))
     return response.json()
 
 @celery.task(name="process_voice")
-async def process_voice(file):
-    voice_path = Path.cwd().joinpath("voices", file.file_unique_id)
-    await file.download_to_drive(voice_path)
-    convert_ogg_to_wav(voice_path, file.file_unique_id, sample_rate=16000)
-    s3.upload_file(voice_path, bucket_name, file.file_unique_id)
-    return True
+def process_voice(link, name, user_id):
+    download_file(link, name)
+    new_name = str(generate_random_name(12))
+    print("try to convert")
+    convert_ogg_to_wav(name, new_name)
+    print("converted")
 
+    s3_name = f"'voices'/{user_id}/{new_name.strip() + '.wav'}"
+    s3.upload_file(new_name, bucket_name, s3_name)
+    os.remove(name)
+    os.remove(new_name)
+    response = '{{"result": "{0}"}}'.format(new_name + '.wav')
+    return json.loads(response)
+
+
+def download_file(link, name):
+    response = requests.get(link)
+    if response.status_code == 200:
+        with open(name, "wb") as f:
+            f.write(response.content)
+            print("File downloaded successfully!")
+    else:
+        print(f"Error downloading file. Status code: {response.status_code}")
+
+
+def generate_random_name(length):
+    return ''.join(random.choices(string.ascii_letters, k=length))

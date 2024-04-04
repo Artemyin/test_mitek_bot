@@ -10,7 +10,6 @@ import boto3
 
 import celery.states as states
 from worker import celery
-# from celery_queue.celery_worker import create_task, process_photo
 
 load_dotenv(".env")
 
@@ -30,6 +29,7 @@ def add_user_photo(user, file_name):
 
 
 def add_user_voice(user, file_name):
+    # user.id - unique telegram user id
     if not get_user_by_id(user.id):  # move this part into decorator?
         create_user(user.id, user.username)
     create_voice(user.id, file_name)
@@ -59,7 +59,7 @@ class BotMixin:
         return file.file_unique_id
 
 
-class PhotoVoiceBot(BotMixin):
+class PhotoVoiceBot(BotMixinw):
 
     def __init__(self, bot_token):
         self.bot = Bot(bot_token)
@@ -82,7 +82,11 @@ class PhotoVoiceBot(BotMixin):
         task_id = task.id
         work = celery.AsyncResult(task_id)
         result = work.get()
+
+        # user.id - unique user telegram id
+        # Pass user and phot name into DB
         add_user_photo(user, photo_name)
+
         await message.reply_text(f"Photos from user {user.id} was saved {link}")
         await message.reply_text(f"{json.dumps(result, indent=2)}")
 

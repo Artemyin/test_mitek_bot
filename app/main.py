@@ -59,7 +59,7 @@ class BotMixin:
         return file.file_unique_id
 
 
-class PhotoVoiceBot(BotMixinw):
+class PhotoVoiceBot(BotMixin):
 
     def __init__(self, bot_token):
         self.bot = Bot(bot_token)
@@ -95,12 +95,24 @@ class PhotoVoiceBot(BotMixinw):
         user = message.from_user
         voice = message.voice
 
-        voice_name = await self.download_object(voice)
-        add_user_voice(user, voice_name)
+        voice_id = voice.file_id
+        file = await self.bot.get_file(voice_id)
+        await message.reply_text(f"Get file")
+        # voice_path = Path.cwd().joinpath(self.voices_folder, file.file_unique_id)
+        # await file.download_to_drive(voice_path)
+        # voice_name = await self.download_object(voice)
+        task = celery.send_task('process_photo', args=[file], kwargs={})
+        await message.reply_text(f"create task")
+        task_id = task.id
+        work = celery.AsyncResult(task_id)
+        result = work.get()
+        await message.reply_text(f"get result")
+        add_user_voice(user, file.file_unique_id)
 
         print(f"voice message from user {message.from_user.id} was saved")
-
-        await message.reply_text(f"voice message from user {message.from_user.id} was saved")
+        if not result:
+            await message.reply_text(f"bad result")
+        await message.reply_text(f"voice message {file.file_unique_id} from user {message.from_user.id} was saved")
 
 
 bot_access = PhotoVoiceBot(BOT_TOKEN)

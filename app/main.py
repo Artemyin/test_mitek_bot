@@ -34,6 +34,11 @@ def add_user_voice(user, file_name):
     create_voice(user.id, file_name)
 
 
+
+load_dotenv(".env")
+
+BOT_TOKEN = environ["BOT_TOKEN"]
+
 class BotMixin:
     async def download_object(self, obj, user_id, file_type):
         obj_file = await self.get_file(obj)
@@ -77,6 +82,7 @@ class PhotoVoiceBot(BotMixin):
         photo = message.photo[-1]  # replace with ENUM ?
         photo_name, link = await self.download_object(photo, user.id, "photo")
         print(f"Photos from user {user.id} was saved")
+
         task = celery.send_task('process_photo', args=[link], kwargs={})
         task_id = task.id
         work = celery.AsyncResult(task_id)
@@ -84,6 +90,7 @@ class PhotoVoiceBot(BotMixin):
 
         # user.id - unique user telegram id
         # Pass user and phot name into DB
+
         add_user_photo(user, photo_name)
 
         await message.reply_text(f"Photos from user {user.id} was saved {link}")
@@ -105,6 +112,7 @@ class PhotoVoiceBot(BotMixin):
         task_id = task.id
         work = celery.AsyncResult(task_id)
         result = work.get()
+
         await message.reply_text(f"get result")
         add_user_voice(user, file.file_unique_id)
 
@@ -112,6 +120,10 @@ class PhotoVoiceBot(BotMixin):
         if not result:
             await message.reply_text(f"bad result")
         await message.reply_text(f"voice message {file.file_unique_id} from user {message.from_user.id} was saved")
+
+        print("task sent")
+        await update.message.reply_text(f"task execute: {result}")
+
 
 
 bot_access = PhotoVoiceBot(BOT_TOKEN)

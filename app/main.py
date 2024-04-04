@@ -14,12 +14,6 @@ load_dotenv(".env")
 
 BOT_TOKEN = environ.get("BOT_TOKEN")
 
-s3 = boto3.client('s3',
-                  aws_access_key_id=environ.get("AWS_ACCESS_KEY_ID"),
-                  aws_secret_access_key=environ.get("AWS_SECRET_ACCESS_KEY")
-                  )
-bucket_name = environ.get("BUCKET_NAME")
-
 
 def add_user_photo(user, file_name):
     if not get_user_by_id(user.id):  # move this part into decorator?

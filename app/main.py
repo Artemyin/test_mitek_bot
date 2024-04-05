@@ -1,12 +1,13 @@
+from os import environ
+from dotenv import load_dotenv
+import json
+
 from telegram import Update, Bot
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
-from os import environ
-from dotenv import load_dotenv
-from crud import add_user_photo, add_user_voice
-import json
-
 from worker import celery
+
+from crud import add_user_photo, add_user_voice
 
 load_dotenv(".env")
 
@@ -22,6 +23,16 @@ class PhotoVoiceBot:
         file_id = obj.file_id
         return await self.bot.get_file(file_id)
 
+    @staticmethod
+    def create_work(**kwargs):
+        link = kwargs.get("link")
+        file_id = kwargs.get("file_id")
+        user_id = kwargs.get("user_id")
+        task = celery.send_task('process_voice', args=[link, file_id, user_id], kwargs={})
+        task_id = task.id
+        work = celery.AsyncResult(task_id)
+        return work.get()
+
     async def hello(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Hello {update.effective_user.first_name}")
 
@@ -34,12 +45,7 @@ class PhotoVoiceBot:
         voice_file = await self.get_file(photo)
         photo_link = voice_file.file_path
 
-        task = celery.send_task('process_photo', args=[photo_link, photo_id, user.id], kwargs={})
-        await message.reply_text(f"create task")
-        task_id = task.id
-        work = celery.AsyncResult(task_id)
-        result = work.get()
-        await message.reply_text(f"get result")
+        result = self.create_work(link=photo_link, file_id=photo_id, user_id=user.id)
 
         downloaded_file = result.get("result")
         if not downloaded_file:
@@ -59,12 +65,7 @@ class PhotoVoiceBot:
         voice_file = await self.get_file(voice)
         voice_link = voice_file.file_path
 
-        task = celery.send_task('process_voice', args=[voice_link, voice_id, user.id], kwargs={})
-        await message.reply_text(f"create task")
-        task_id = task.id
-        work = celery.AsyncResult(task_id)
-        result = work.get()
-        await message.reply_text(f"get result")
+        result = self.create_work(link=voice_link, file_id=voice_id, user_id=user.id)
 
         downloaded_file = result.get("result")
         add_user_voice(user=user, file_name=downloaded_file)
@@ -81,3 +82,4 @@ app.add_handler(MessageHandler(filters.VOICE, bot_access.download_user_voice))
 app.add_handler(MessageHandler(filters.PHOTO, bot_access.download_user_photos))
 
 app.run_polling()
+

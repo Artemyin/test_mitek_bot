@@ -1,8 +1,14 @@
-import cv2
+import face_recognition
+from PIL import Image, ImageDraw
 
-def detect_face(image_path):
-    image = cv2.imread(image_path)
-    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-    faces = face_cascade.detectMultiScale(gray_image, scaleFactor=1.12, minNeighbors=9, minSize=(60, 60))
-    return len(faces)
+
+def draw_box_face_locations(file):
+    image = face_recognition.load_image_file(file)
+    face_locations = face_recognition.face_locations(image, number_of_times_to_upsample=0, model="cnn")
+    face_encodings = face_recognition.face_encodings(image, face_locations)
+    pil_image = Image.fromarray(image)
+    draw = ImageDraw.Draw(pil_image)
+    for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
+        draw.rectangle(((left, top), (right, bottom)), outline=(0, 0, 255))
+    pil_image.save(file)
+    return len(face_locations)

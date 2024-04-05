@@ -4,12 +4,11 @@ from dotenv import load_dotenv
 import boto3
 import requests
 from audio_converter import convert_ogg_to_wav
-from face_detector import detect_face
+from face_detector import draw_box_face_locations
 import json
 
 import random
 import string
-
 
 load_dotenv(".env")
 
@@ -22,12 +21,13 @@ s3 = boto3.client('s3',
                   )
 bucket_name = os.environ.get("BUCKET_NAME")
 
+
 @celery.task(name="process_photo")
 def process_photo(link, name, user_id):
-    download_file(link, name)
-    detected = detect_face(name)
+    download_file(link, name := name + ".jpg")
+    detected = draw_box_face_locations(name)
     if detected:
-        new_name = str(generate_random_name(12)) + ".jpeg"
+        new_name = str(generate_random_name(12)) + ".jpg"
         s3_name = f"'photos'/{user_id}/{new_name}"
         s3.upload_file(name, bucket_name, s3_name)
         result = json.loads('{{"result": "{0}"}}'.format(new_name))
@@ -35,6 +35,7 @@ def process_photo(link, name, user_id):
         result = json.loads('{{"result": {0}}}'.format(0))
     os.remove(name)
     return result
+
 
 @celery.task(name="process_voice")
 def process_voice(link, name, user_id):

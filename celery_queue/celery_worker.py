@@ -41,10 +41,7 @@ def process_photo(link, name, user_id):
 def process_voice(link, name, user_id):
     download_file(link, name)
     new_name = str(generate_random_name(12))
-    print("try to convert")
     convert_ogg_to_wav(name, new_name)
-    print("converted")
-
     s3_name = f"'voices'/{user_id}/{new_name.strip() + '.wav'}"
     s3.upload_file(new_name, bucket_name, s3_name)
     os.remove(name)

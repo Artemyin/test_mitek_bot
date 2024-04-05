@@ -1,12 +1,10 @@
 from telegram import Update, Bot
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
-from os import mkdir, environ
-from os.path import exists
+from os import environ
 from dotenv import load_dotenv
-from crud import create_photo, create_user, get_user_by_id, create_voice
+from crud import add_user_photo, add_user_voice
 import json
-import boto3
 
 from worker import celery
 
@@ -15,24 +13,10 @@ load_dotenv(".env")
 BOT_TOKEN = environ.get("BOT_TOKEN")
 
 
-def add_user_photo(user, file_name):
-    if not get_user_by_id(user.id):  # move this part into decorator?
-        create_user(user.id, user.username)
-    create_photo(user.id, file_name)
-
-
-def add_user_voice(user, file_name):
-    # user.id - unique telegram user id
-    if not get_user_by_id(user.id):  # move this part into decorator?
-        create_user(user.id, user.username)
-    create_voice(user.id, file_name)
-
-
 class PhotoVoiceBot:
 
     def __init__(self, bot_token):
         self.bot = Bot(bot_token)
-
 
     async def get_file(self, obj):
         file_id = obj.file_id
@@ -61,7 +45,7 @@ class PhotoVoiceBot:
         if not downloaded_file:
             await message.reply_text(f"Photos from user {user.id} cant recognize face")
             return
-        add_user_photo(user, downloaded_file)
+        add_user_photo(user=user, file_name=downloaded_file)
 
         await message.reply_text(f"Photos from user {user.id} was saved {downloaded_file}")
         await message.reply_text(f"{json.dumps(result, indent=2)}")
@@ -83,7 +67,7 @@ class PhotoVoiceBot:
         await message.reply_text(f"get result")
 
         downloaded_file = result.get("result")
-        add_user_voice(user, downloaded_file)
+        add_user_voice(user=user, file_name=downloaded_file)
 
         print(f"voice message from user {message.from_user.id} was saved")
 
@@ -97,5 +81,3 @@ app.add_handler(MessageHandler(filters.VOICE, bot_access.download_user_voice))
 app.add_handler(MessageHandler(filters.PHOTO, bot_access.download_user_photos))
 
 app.run_polling()
-
-

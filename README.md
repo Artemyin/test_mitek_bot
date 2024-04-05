@@ -5,7 +5,7 @@
 
 - Celery with Redis and Flower
 
-- Face recognition: rapidapi.com
+- Face detection: [face_recognition](https://github.com/ageitgey/face_recognition) based on [dlib](http://dlib.net/); 
 
 - Audio: pydub with ffmpeg
 
